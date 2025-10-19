@@ -1,0 +1,335 @@
+package compiler.syntax;
+
+// Declaracion de importaciones 
+//(No modificar las proporcionadas. Se pueden agregar mas)
+
+import java_cup.runtime.Symbol;
+import java.util.*;
+
+import es.uned.lsi.compiler.lexical.*;
+import es.uned.lsi.compiler.code.*;
+import es.uned.lsi.compiler.intermediate.*;
+import es.uned.lsi.compiler.semantic.*;
+import es.uned.lsi.compiler.semantic.symbol.*;
+import es.uned.lsi.compiler.semantic.type.*;
+import es.uned.lsi.compiler.syntax.*;
+
+import compiler.CompilerContext;
+import compiler.lexical.*;
+import compiler.syntax.nonTerminal.*;
+
+import compiler.semantic.symbol.*;
+import compiler.semantic.type.*;
+import compiler.intermediate.*;
+import compiler.code.*;
+
+// Declaracion del codigo de usuario
+
+action code {:
+	
+	SyntaxErrorManager   syntaxErrorManager   = CompilerContext.getSyntaxErrorManager();
+	SemanticErrorManager semanticErrorManager = CompilerContext.getSemanticErrorManager ();
+	ScopeManagerIF       scopeManager         = CompilerContext.getScopeManager ();
+	FinalCodeFactoryIF   finalCodeFactory     = CompilerContext.getFinalCodeFactory ();
+
+:}	
+
+parser code {:
+	SyntaxErrorManager syntaxErrorManager = CompilerContext.getSyntaxErrorManager();
+	
+	public void syntax_error(Symbol symbol)
+	{ 
+	    Token token = (Token) symbol.value;
+	    syntaxErrorManager.syntaxError ("Error sintactico", token);	    
+	}
+		
+	public void unrecovered_syntax_error(java_cup.runtime.Symbol symbol)
+	{	
+	    Token token = (Token) symbol.value;
+	    syntaxErrorManager.syntaxFatalError ("Error fatal", token);
+	}
+:}
+
+// Declaracion de terminales (Ejemplo)
+
+//PALABRAS RESERVADAS
+terminal Token 					BEGIN,
+								BOOLEAN,
+								CONST,
+								ELSE,
+								END,
+								FALSE,
+								FUNCTION,
+								IF,
+								IN,
+								INTEGER,
+								OF,
+								OR,
+								PROCEDURE,
+								PROGRAM,
+								REPEAT,
+								SET,
+								THEN,
+								TRUE,
+								TYPE,
+								UNTIL,
+								VAR,
+								WRITE;
+
+//CONSTANTES LITERALES
+terminal Token 					INT,
+								STRING;
+								//TRUE,
+								//FALSE;
+
+// OPERADORES ARITMETICOS
+terminal Token 					PLUS,
+								MINUS,
+								STAR;
+
+// OPERADORES RELACIONALES
+terminal Token 					GT, 			//	<
+								NE;				//	<>
+
+// OPERADORES ASIGNACION
+terminal Token 					ASSIGN,			//	:=
+								EQUALS; 		// 	 =
+
+// DELIMINTADORES
+terminal Token 					LPAREN,
+								RPAREN,
+								LBRACK,
+								RBRACK,
+								COMMA,
+								DOTDOT,
+								DOT,
+								SEMICOLON,
+								COLON;
+
+//IDENTIFICADORES
+terminal Token 					ID;
+
+
+// ...
+
+
+// Declaracion de no terminales
+// no modificar los propuestos
+
+non terminal  					program;
+non terminal Axiom				axiom;
+
+/*********************
+ * mis no terminales *
+ *********************/
+non terminal 					header,
+								body;
+
+// DECLARACIONES
+non terminal 					declarations,
+								simb_const_decl,
+								types_decl,
+								var_decl,
+								subprog_decl,
+								stmt_list;
+
+// EXPRESIONES
+non terminal 					arith_exp_part,
+								full_arith_exp,
+								bool_exp_part,
+								full_bool_exp,
+								set_exp;
+
+// SENTENCIAS
+non terminal					stmt,
+								assig_stmt,
+								well_struct_if_stmt,
+								poorly_struct_if_stmt,
+								no_if_stmt,
+								repeat_stmt,
+								write_stmt;
+
+// SUBPROGRAMAS
+non terminal					procedures,
+								fun,
+								fun_call,
+								args,
+								values_list;
+
+// OTROS
+non terminal 					bool_lit,
+								type_name,
+								comp_op,
+								op,
+								ids_list,
+								simb_const,
+								types,
+								vars,
+								expresion,
+								endpoints;
+
+// ...
+
+
+// Declaracion de relaciones de precedencia
+
+precedence right ASSIGN;
+precedence left GT, NE;
+precedence left PLUS, MINUS, OR;
+precedence left STAR;
+
+// ...
+
+// Declaración de reglas de produccion
+
+
+start with program;
+
+program ::= 
+  {: 
+        syntaxErrorManager.syntaxInfo ("Starting parsing..."); 
+   :}
+  axiom:ax
+  {:   		
+  		
+  		syntaxErrorManager.syntaxInfo ("Parsing process ended.");
+   :};
+
+/****************
+ *	ESTRUCTURA	*
+ ****************/
+axiom ::= 						header declarations body ;
+header ::= 						PROGRAM ID SEMICOLON;
+declarations ::= 				simb_const_decl types_decl var_decl subprog_decl;
+body ::=						BEGIN stmt_list END DOT;
+
+/********************
+ *	DECLARACIONES	*
+ ********************/
+
+// CONSTANTES SIMBÓLICAS
+simb_const_decl ::= 			CONST simb_const |
+								/* epsilon */;
+simb_const ::= 					ID EQUALS bool_lit SEMICOLON simb_const |
+								ID EQUALS bool_lit SEMICOLON |
+								ID EQUALS INT SEMICOLON simb_const |
+								ID EQUALS INT SEMICOLON;
+
+// TIPOS
+types_decl ::= 					TYPE types |
+								/* epsilon */;
+types ::= 						ID EQUALS SET OF endpoints DOTDOT endpoints SEMICOLON types |
+								ID EQUALS SET OF endpoints DOTDOT endpoints SEMICOLON;
+
+endpoints ::=					INT |
+								ID;
+
+// VARIABLES
+var_decl ::= 					VAR vars |
+								/*epsilon*/;
+
+vars ::= 						ids_list COLON type_name SEMICOLON vars |
+								ids_list COLON type_name SEMICOLON;
+
+ids_list ::= 					ID COMMA ids_list |
+								ID;
+
+// SUBPROGRAMAS
+subprog_decl ::= 				procedures |
+								fun |
+								/*epsilon*/;
+
+procedures ::= 					PROCEDURE ID LPAREN args RPAREN SEMICOLON declarations BEGIN stmt_list END SEMICOLON subprog_decl;
+
+fun ::= 						FUNCTION ID LPAREN args RPAREN COLON type_name SEMICOLON declarations BEGIN stmt_list END SEMICOLON subprog_decl;
+
+args ::=						ids_list COLON type_name SEMICOLON args |
+								ids_list COLON type_name |
+								/*epsilon*/;
+
+/********************
+ * TIPOS PRIMITIVOS *
+ ********************/
+// palabras reservadas que los identifican
+type_name ::= 					INTEGER |
+								BOOLEAN |
+								ID;
+
+bool_lit ::= 					TRUE |
+								FALSE;
+
+fun_call ::=					ID LPAREN values_list RPAREN |
+								ID LPAREN RPAREN;
+values_list ::= 				expresion |
+								expresion COMMA values_list;
+
+/****************
+ *	SENTENCIAS	*
+ ****************/
+
+stmt_list ::= 					stmt stmt_list |
+								/*epsilon*/;
+
+no_if_stmt ::= 					assig_stmt |
+								fun_call |
+								repeat_stmt |
+								write_stmt;
+
+assig_stmt ::= 					ID ASSIGN expresion;
+
+stmt ::= 						well_struct_if_stmt |
+								poorly_struct_if_stmt;
+
+
+well_struct_if_stmt ::= 		IF LPAREN full_bool_exp RPAREN THEN well_struct_if_stmt ELSE well_struct_if_stmt |
+								IF LPAREN full_bool_exp RPAREN THEN BEGIN stmt_list END SEMICOLON ELSE well_struct_if_stmt |
+								IF LPAREN full_bool_exp RPAREN THEN well_struct_if_stmt ELSE BEGIN stmt_list END SEMICOLON |
+								IF LPAREN full_bool_exp RPAREN THEN BEGIN stmt_list END SEMICOLON ELSE BEGIN stmt_list END SEMICOLON |
+								no_if_stmt SEMICOLON;
+
+poorly_struct_if_stmt ::= 		IF LPAREN full_bool_exp RPAREN THEN stmt |
+								IF LPAREN full_bool_exp RPAREN THEN well_struct_if_stmt ELSE poorly_struct_if_stmt |
+								IF LPAREN full_bool_exp RPAREN THEN BEGIN stmt_list END SEMICOLON;
+
+repeat_stmt ::=					REPEAT stmt_list UNTIL LPAREN full_bool_exp RPAREN;
+
+write_stmt ::=					WRITE LPAREN STRING RPAREN |
+								WRITE LPAREN expresion RPAREN;
+
+/***************
+ * EXPRESIONES *
+ ***************/
+
+expresion ::=					arith_exp_part |
+								bool_exp_part |
+								set_exp |
+								fun_call |
+								ID;
+
+arith_exp_part ::= 				INT |
+								LPAREN arith_exp_part RPAREN |
+								full_arith_exp op full_arith_exp ;
+
+full_arith_exp ::= 				arith_exp_part |
+								fun_call |
+								ID;
+
+op ::= 							PLUS |
+								MINUS |
+								STAR;
+
+bool_exp_part ::= 				bool_lit |
+								full_bool_exp OR full_bool_exp |
+								LPAREN bool_exp_part RPAREN |
+								full_arith_exp comp_op full_arith_exp ;
+
+full_bool_exp ::=				bool_exp_part |
+								fun_call |
+								full_arith_exp IN ID |
+								ID;
+
+comp_op ::= 					GT |
+								NE;
+
+set_exp ::= 					LBRACK RBRACK |
+								LBRACK full_arith_exp DOTDOT full_arith_exp RBRACK;
