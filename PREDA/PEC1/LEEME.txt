@@ -1,0 +1,5 @@
+Estructura:
+
+ - Codigo Auxiliar: Contiene codigo que he creado aparte para hacer algunas tareas que he necesitado para el analisis
+ - JAR: Contiene el ejecutable .jar y un script para ejecutar varias pruebas automaticamente
+ - src: Contiene el código que se pide en la práctica
